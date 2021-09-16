@@ -38,6 +38,7 @@
 
 // we need to know what is in the world to show
 #include "Track.H"
+#include "TrainView.H"
 
 // other things we just deal with as pointers, to avoid circular references
 class TrainView;

@@ -24,6 +24,7 @@
 class TrainWindow;
 class Fl_Widget;
 class Train;
+class TrainView;
 
 // Reset the train window
 void resetCB(Fl_Widget*, TrainWindow* tw);

@@ -36,8 +36,6 @@
 #include "TrainView.H"
 #include "CallBacks.H"
 
-
-
 //************************************************************************
 //
 // * Constructor
@@ -251,6 +249,5 @@ advanceTrain(float dir)
 			trainView->s_time = 0.0f;
 			trainView->t_time = 0.0f;
 		}
-		std::cout << trainView->t_time << std::endl;
 	}
 }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  

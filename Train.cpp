@@ -150,7 +150,7 @@ Train(Pnt3f pos, Pnt3f orient, float* vec, bool doingShadow)
 	f_c6 = rotatef(rotationMatrix, f_c6);
 	f_c7 = rotatef(rotationMatrix, f_c7);
 
-	glPushMatrix();
+	/*glPushMatrix();
 	glTranslatef(pos.x, pos.y, pos.z);
 	glBegin(GL_QUADS);	
 	if (!doingShadow)
@@ -164,7 +164,7 @@ Train(Pnt3f pos, Pnt3f orient, float* vec, bool doingShadow)
 	glTexCoord2f(1.0f, 0.0f);
 	glVertex3f(-5, 7, -3);
 	glEnd();
-	glPopMatrix();
+	glPopMatrix();*/
 
 	////front
 	//glBegin(GL_QUADS);

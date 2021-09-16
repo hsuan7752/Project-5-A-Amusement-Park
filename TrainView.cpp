@@ -1,22 +1,22 @@
 /************************************************************************
-     File:        TrainView.cpp
-     Author:     
-                  Michael Gleicher, gleicher@cs.wisc.edu
-     Modifier
-                  Yu-Chi Lai, yu-chi@cs.wisc.edu
-     
-     Comment:     
-						The TrainView is the window that actually shows the 
+	 File:        TrainView.cpp
+	 Author:
+				  Michael Gleicher, gleicher@cs.wisc.edu
+	 Modifier
+				  Yu-Chi Lai, yu-chi@cs.wisc.edu
+
+	 Comment:
+						The TrainView is the window that actually shows the
 						train. Its a
-						GL display canvas (Fl_Gl_Window).  It is held within 
+						GL display canvas (Fl_Gl_Window).  It is held within
 						a TrainWindow
-						that is the outer window with all the widgets. 
-						The TrainView needs 
-						to be aware of the window - since it might need to 
+						that is the outer window with all the widgets.
+						The TrainView needs
+						to be aware of the window - since it might need to
 						check the widgets to see how to draw
-	  Note:        we need to have pointers to this, but maybe not know 
+	  Note:        we need to have pointers to this, but maybe not know
 						about it (beware circular references)
-     Platform:    Visio Studio.Net 2003/2005
+	 Platform:    Visio Studio.Net 2003/2005
 *************************************************************************/
 
 #include <iostream>
@@ -30,10 +30,15 @@
 #include "GL/glu.h"
 #include <math.h>
 
+//#define STB_IMAGE_IMPLEMENTATION
+//#include "stb-master/stb_image.h"
+//#include <iostream>
+
 #include "TrainView.H"
 #include "TrainWindow.H"
 #include "Utilities/3DUtils.H"
 #include "Train.H"
+#include "FerrisWheels.H"
 
 
 #ifdef EXAMPLE_SOLUTION
@@ -66,11 +71,11 @@ float M_b_spline[4][4]{ { -0.1667,    0.5,   -0.5, 0.1667 },
 // * Constructor to set up the GL window
 //========================================================================
 TrainView::
-TrainView(int x, int y, int w, int h, const char* l) 
-	: Fl_Gl_Window(x,y,w,h,l)
-//========================================================================
+TrainView(int x, int y, int w, int h, const char* l)
+	: Fl_Gl_Window(x, y, w, h, l)
+	//========================================================================
 {
-	mode( FL_RGB|FL_ALPHA|FL_DOUBLE | FL_STENCIL );
+	mode(FL_RGB | FL_ALPHA | FL_DOUBLE | FL_STENCIL);
 
 	resetArcball();
 }
@@ -104,84 +109,84 @@ int TrainView::handle(int event)
 	// then we're done
 	// note: the arcball only gets the event if we're in world view
 	if (tw->worldCam->value())
-		if (arcball.handle(event)) 
+		if (arcball.handle(event))
 			return 1;
 
 	// remember what button was used
 	static int last_push;
 
-	switch(event) {
+	switch (event) {
 		// Mouse button being pushed event
-		case FL_PUSH:
-			last_push = Fl::event_button();
-			// if the left button be pushed is left mouse button
-			if (last_push == FL_LEFT_MOUSE  ) {
-				doPick();
-				damage(1);
-				return 1;
-			};
-			break;
-
-	   // Mouse button release event
-		case FL_RELEASE: // button release
+	case FL_PUSH:
+		last_push = Fl::event_button();
+		// if the left button be pushed is left mouse button
+		if (last_push == FL_LEFT_MOUSE) {
+			doPick();
 			damage(1);
-			last_push = 0;
 			return 1;
+		};
+		break;
+
+		// Mouse button release event
+	case FL_RELEASE: // button release
+		damage(1);
+		last_push = 0;
+		return 1;
 
 		// Mouse button drag event
-		case FL_DRAG:
+	case FL_DRAG:
 
-			// Compute the new control point position
-			if ((last_push == FL_LEFT_MOUSE) && (selectedCube >= 0)) {
-				ControlPoint* cp = &m_pTrack->points[selectedCube];
+		// Compute the new control point position
+		if ((last_push == FL_LEFT_MOUSE) && (selectedCube >= 0)) {
+			ControlPoint* cp = &m_pTrack->points[selectedCube];
 
-				double r1x, r1y, r1z, r2x, r2y, r2z;
-				getMouseLine(r1x, r1y, r1z, r2x, r2y, r2z);
+			double r1x, r1y, r1z, r2x, r2y, r2z;
+			getMouseLine(r1x, r1y, r1z, r2x, r2y, r2z);
 
-				double rx, ry, rz;
-				mousePoleGo(r1x, r1y, r1z, r2x, r2y, r2z, 
-								static_cast<double>(cp->pos.x), 
-								static_cast<double>(cp->pos.y),
-								static_cast<double>(cp->pos.z),
-								rx, ry, rz,
-								(Fl::event_state() & FL_CTRL) != 0);
+			double rx, ry, rz;
+			mousePoleGo(r1x, r1y, r1z, r2x, r2y, r2z,
+				static_cast<double>(cp->pos.x),
+				static_cast<double>(cp->pos.y),
+				static_cast<double>(cp->pos.z),
+				rx, ry, rz,
+				(Fl::event_state() & FL_CTRL) != 0);
 
-				cp->pos.x = (float) rx;
-				cp->pos.y = (float) ry;
-				cp->pos.z = (float) rz;
-				damage(1);
-			}
-			break;
+			cp->pos.x = (float)rx;
+			cp->pos.y = (float)ry;
+			cp->pos.z = (float)rz;
+			damage(1);
+		}
+		break;
 
 		// in order to get keyboard events, we need to accept focus
-		case FL_FOCUS:
-			return 1;
+	case FL_FOCUS:
+		return 1;
 
 		// every time the mouse enters this window, aggressively take focus
-		case FL_ENTER:	
-			focus(this);
-			break;
+	case FL_ENTER:
+		focus(this);
+		break;
 
-		case FL_KEYBOARD:
-		 		int k = Fl::event_key();
-				int ks = Fl::event_state();
-				if (k == 'p') {
-					// Print out the selected control point information
-					if (selectedCube >= 0) 
-						printf("Selected(%d) (%g %g %g) (%g %g %g)\n",
-								 selectedCube,
-								 m_pTrack->points[selectedCube].pos.x,
-								 m_pTrack->points[selectedCube].pos.y,
-								 m_pTrack->points[selectedCube].pos.z,
-								 m_pTrack->points[selectedCube].orient.x,
-								 m_pTrack->points[selectedCube].orient.y,
-								 m_pTrack->points[selectedCube].orient.z);
-					else
-						printf("Nothing Selected\n");
+	case FL_KEYBOARD:
+		int k = Fl::event_key();
+		int ks = Fl::event_state();
+		if (k == 'p') {
+			// Print out the selected control point information
+			if (selectedCube >= 0)
+				printf("Selected(%d) (%g %g %g) (%g %g %g)\n",
+					selectedCube,
+					m_pTrack->points[selectedCube].pos.x,
+					m_pTrack->points[selectedCube].pos.y,
+					m_pTrack->points[selectedCube].pos.z,
+					m_pTrack->points[selectedCube].orient.x,
+					m_pTrack->points[selectedCube].orient.y,
+					m_pTrack->points[selectedCube].orient.z);
+			else
+				printf("Nothing Selected\n");
 
-					return 1;
-				};
-				break;
+			return 1;
+		};
+		break;
 	}
 
 	return Fl_Gl_Window::handle(event);
@@ -204,15 +209,17 @@ void TrainView::draw()
 	if (gladLoadGL())
 	{
 		//initiailize VAO, VBO, Shader...
+		//if (!skyboxShader)
+		//	initskyboxShader();
 	}
 	else
 		throw std::runtime_error("Could not initialize GLAD!");
 
 	// Set up the view port
-	glViewport(0,0,w(),h());
+	glViewport(0, 0, w(), h());
 
 	// clear the window, be sure to clear the Z-Buffer too
-	glClearColor(0,0,.3f,0);		// background should be blue
+	glClearColor(0, 0, .3f, 0);		// background should be blue
 
 	// we need to clear out the stencil buffer since we'll use
 	// it for shadows
@@ -221,7 +228,7 @@ void TrainView::draw()
 	glEnable(GL_DEPTH);
 
 	// Blayne prefers GL_DIFFUSE
-    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+	glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
 
 	// prepare for projection
 	glMatrixMode(GL_PROJECTION);
@@ -243,24 +250,25 @@ void TrainView::draw()
 	if (tw->topCam->value()) {
 		glDisable(GL_LIGHT1);
 		glDisable(GL_LIGHT2);
-	} else {
+	}
+	else {
 		glEnable(GL_LIGHT1);
 		glEnable(GL_LIGHT2);
 	}
-	
+
 
 	//*********************************************************************
 	//
 	// * set the light parameters
 	//
 	//**********************************************************************
-	GLfloat lightPosition1[]	= {0,1,1,0}; // {50, 200.0, 50, 1.0};
-	GLfloat lightPosition2[]	= {1, 0, 0, 0};
-	GLfloat lightPosition3[]	= {0, -1, 0, 0};
-	GLfloat yellowLight[]		= {0.5f, 0.5f, .1f, 1.0};
-	GLfloat whiteLight[]			= {1.0f, 1.0f, 1.0f, 1.0};
-	GLfloat blueLight[]			= {.1f,.1f,.3f,1.0};
-	GLfloat grayLight[]			= {.3f, .3f, .3f, 1.0};
+	GLfloat lightPosition1[] = { 0,1,1,0 }; // {50, 200.0, 50, 1.0};
+	GLfloat lightPosition2[] = { 1, 0, 0, 0 };
+	GLfloat lightPosition3[] = { 0, -1, 0, 0 };
+	GLfloat yellowLight[] = { 0.5f, 0.5f, .1f, 1.0 };
+	GLfloat whiteLight[] = { 1.0f, 1.0f, 1.0f, 1.0 };
+	GLfloat blueLight[] = { .1f,.1f,.3f,1.0 };
+	GLfloat grayLight[] = { .3f, .3f, .3f, 1.0 };
 
 	glLightfv(GL_LIGHT0, GL_POSITION, lightPosition1);
 	glLightfv(GL_LIGHT0, GL_DIFFUSE, whiteLight);
@@ -282,7 +290,7 @@ void TrainView::draw()
 
 	setupFloor();
 	glDisable(GL_LIGHTING);
-	drawFloor(200,10);
+	drawFloor(200, 10);
 
 
 	//*********************************************************************
@@ -344,7 +352,7 @@ setProjection()
 		if (aspect >= 1) {
 			wi = 110;
 			he = wi / aspect;
-		} 
+		}
 		else {
 			he = 110;
 			wi = he * aspect;
@@ -356,8 +364,8 @@ setProjection()
 		glOrtho(-wi, wi, -he, he, 200, -200);
 		glMatrixMode(GL_MODELVIEW);
 		glLoadIdentity();
-		glRotatef(-90,1,0,0);
-	} 
+		glRotatef(-90, 1, 0, 0);
+	}
 	// Or do the train view or other view here
 	//####################################################################
 	// TODO: 
@@ -365,7 +373,7 @@ setProjection()
 	//####################################################################
 	else {
 #ifdef EXAMPLE_SOLUTION
-		trainCamView(this,aspect);
+		trainCamView(this, aspect);
 #endif
 		int splineType = -1;
 
@@ -472,9 +480,9 @@ void TrainView::drawStuff(bool doingShadows)
 	// don't draw the control points if you're driving 
 	// (otherwise you get sea-sick as you drive through them)
 	if (!tw->trainCam->value()) {
-		for(size_t i=0; i<m_pTrack->points.size(); ++i) {
+		for (size_t i = 0; i < m_pTrack->points.size(); ++i) {
 			if (!doingShadows) {
-				if ( ((int) i) != selectedCube)
+				if (((int)i) != selectedCube)
 					glColor3ub(240, 60, 60);
 				else
 					glColor3ub(240, 240, 30);
@@ -508,9 +516,16 @@ void TrainView::drawStuff(bool doingShadows)
 	if (!tw->trainCam->value())
 		drawTrain(doingShadows);
 
-	/*Train train;
-	train.draw(doingShadows);
-	train.add(doingShadows);*/
+	if (!tw->trainCam->value())
+	{
+		glPushMatrix();
+		glScalef(5.0f, 5.0f, 5.0f);
+		glTranslatef(0.0f, 7.0f, 0.0f);
+		ferris_wheel.draw(doingShadows);
+		glPopMatrix();
+
+		//drawSkybox();
+	}
 }
 
 // 
@@ -531,10 +546,10 @@ doPick()
 {
 	// since we'll need to do some GL stuff so we make this window as 
 	// active window
-	make_current();		
+	make_current();
 
 	// where is the mouse?
-	int mx = Fl::event_x(); 
+	int mx = Fl::event_x();
 	int my = Fl::event_y();
 
 	// get the viewport - most reliable way to turn mouse coords into GL coords
@@ -544,23 +559,23 @@ doPick()
 	// Set up the pick matrix on the stack - remember, FlTk is
 	// upside down!
 	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity ();
-	gluPickMatrix((double)mx, (double)(viewport[3]-my), 
-						5, 5, viewport);
+	glLoadIdentity();
+	gluPickMatrix((double)mx, (double)(viewport[3] - my),
+		5, 5, viewport);
 
 	// now set up the projection
 	setProjection();
 
 	// now draw the objects - but really only see what we hit
 	GLuint buf[100];
-	glSelectBuffer(100,buf);
+	glSelectBuffer(100, buf);
 	glRenderMode(GL_SELECT);
 	glInitNames();
 	glPushName(0);
 
 	// draw the cubes, loading the names as we go
-	for(size_t i=0; i<m_pTrack->points.size(); ++i) {
-		glLoadName((GLuint) (i+1));
+	for (size_t i = 0; i < m_pTrack->points.size(); ++i) {
+		glLoadName((GLuint)(i + 1));
 		m_pTrack->points[i].draw();
 	}
 
@@ -571,11 +586,12 @@ doPick()
 		// are multiple objects, you really want to pick the closest
 		// one - see the OpenGL manual 
 		// remember: we load names that are one more than the index
-		selectedCube = buf[3]-1;
-	} else // nothing hit, nothing selected
+		selectedCube = buf[3] - 1;
+	}
+	else // nothing hit, nothing selected
 		selectedCube = -1;
 
-	printf("Selected Cube %d\n",selectedCube);
+	printf("Selected Cube %d\n", selectedCube);
 }
 
 #define PI 3.14159265
@@ -625,10 +641,10 @@ drawTrack(bool doingShadow)
 			t += percent;
 
 			float G[3][4]{ { cp_pos_p1.x, cp_pos_p2.x, cp_pos_p3.x, cp_pos_p4.x },
-						   { cp_pos_p1.y, cp_pos_p2.y, cp_pos_p3.y, cp_pos_p4.y }, 
+						   { cp_pos_p1.y, cp_pos_p2.y, cp_pos_p3.y, cp_pos_p4.y },
 						   { cp_pos_p1.z, cp_pos_p2.z, cp_pos_p3.z, cp_pos_p4.z } };
 
-			float T[4] { pow(t, 3), pow(t, 2), t, 1 };
+			float T[4]{ pow(t, 3), pow(t, 2), t, 1 };
 
 			float C[4]{ 0 };
 
@@ -713,19 +729,19 @@ drawTrack(bool doingShadow)
 				glVertex3f(qt1.x - cross_t.x, qt1.y - cross_t.y, qt1.z - cross_t.z);
 				glEnd();
 				break;
-			}		
+			}
 
 			//draw Sleeper
 			distance += sqrtf(pow(qt1.x - qt0.x, 2) + pow(qt1.y - qt0.y, 2) + pow(qt1.z - qt0.z, 2));
-			
+
 			Pnt3f AC, AB;
-			
+
 			AC = Pnt3f(qt1.x - qt0.x, qt1.y - qt0.y, qt1.z - qt0.z);
 			AB = Pnt3f(1.0f, 0.0f, 0.0f);
 
 			float cos_y = (float)(AC.x * AB.x + AC.y * AB.y + AC.z * AB.z)
 				/ (abs(sqrt(pow(AC.x, 2) + pow(AC.y, 2) + pow(AC.z, 2))) * abs(sqrt(pow(AB.x, 2) + pow(AB.y, 2) + pow(AB.z, 2))));
-			
+
 			float angle_y = acos(cos_y) * 180.0 / PI;
 
 			if ((AC.x < 0 && AC.z > 0) || (AC.x > 0 && AC.z > 0))
@@ -741,7 +757,7 @@ drawTrack(bool doingShadow)
 			if (distance > 8)
 			{
 				distance = 0;
-				
+
 				glPushMatrix();
 				glTranslatef(qt1.x, qt1.y, qt1.z);
 				glRotatef(angle_y, 0.0f, 1.0f, 0.0f);
@@ -805,7 +821,7 @@ drawTrain(bool doingShadow)
 		qt = (1 - t) * cp_pos_p1 + t * cp_pos_p2;
 		orient_t = (1 - t) * cp_orient_p1 + t * cp_orient_p2;
 
-		tangent = Pnt3f( cp_pos_p2.x - cp_pos_p1.x, cp_pos_p2.y - cp_pos_p1.y, cp_pos_p2.z - cp_pos_p1.z );		
+		tangent = Pnt3f(cp_pos_p2.x - cp_pos_p1.x, cp_pos_p2.y - cp_pos_p1.y, cp_pos_p2.z - cp_pos_p1.z);
 		break;
 	case splineType::CARDINAL:
 		Mult_Q(C, M_cardinal, T);
@@ -852,7 +868,7 @@ drawTrain(bool doingShadow)
 double* TrainView::
 rotate(float m[][3], double* p)
 {
-	double* n = new double[]{0, 0, 0};
+	double* n = new double[] {0, 0, 0};
 	for (int i = 0; i < 3; ++i)
 		for (int j = 0; j < 3; ++j)
 			n[i] += m[i][j] * p[j];
@@ -1072,7 +1088,7 @@ drawCar(bool doingShadow)
 
 void  TrainView::
 differential(float* C, float M[][4], float t)
-{	
+{
 	float T[4]{ 3 * pow(t, 2), 2 * t, 1, 0 };
 
 	for (int i = 0; i < 4; ++i)
@@ -1091,7 +1107,7 @@ drawWheel(bool doingShadow)
 		glColor3ub(0, 0, 0);
 	glVertex3f(x, y + 1.0f, z);
 	for (int i = 0; i <= 360; ++i)
-		glVertex3f(x + r * cos(i * PI / 180.0) , y + 1.0f, z + r * sin(i * PI / 180.0));
+		glVertex3f(x + r * cos(i * PI / 180.0), y + 1.0f, z + r * sin(i * PI / 180.0));
 	glEnd();
 
 	glBegin(GL_TRIANGLE_FAN);
@@ -1111,4 +1127,134 @@ drawWheel(bool doingShadow)
 		glVertex3f(r * cos(i * PI / 180.0), -1.0f, r * sin(i * PI / 180.0));
 	}
 	glEnd();
-}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
+}
+
+//unsigned int TrainView::
+//loadCubemap(std::vector<std::string> faces)
+//{
+//	unsigned int textureID;
+//	glGenTextures(1, &textureID);
+//	glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+//
+//	int width, height, nrComponents;
+//	for (unsigned int i = 0; i < faces.size(); i++)
+//	{
+//		unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrComponents, 0);
+//		if (data)
+//		{
+//			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+//			stbi_image_free(data);
+//		}
+//		else
+//		{
+//			std::cout << "Cubemap texture failed to load at path: " << faces[i] << std::endl;
+//			stbi_image_free(data);
+//		}
+//	}
+//	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+//	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+//	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+//	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+//	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+//
+//	return textureID;
+//}
+//
+//
+//void TrainView::
+//initskyboxShader()
+//{
+//	this->skyboxShader = new Shader(PROJECT_DIR "/src/shaders/skybox.vert",
+//		nullptr, nullptr, nullptr,
+//		PROJECT_DIR "/src/shaders/skybox.frag");
+//
+//	float skyboxVertices[] = {
+//		// positions          
+//		-1.0f,  1.0f, -1.0f,
+//		-1.0f, -1.0f, -1.0f,
+//		 1.0f, -1.0f, -1.0f,
+//		 1.0f, -1.0f, -1.0f,
+//		 1.0f,  1.0f, -1.0f,
+//		-1.0f,  1.0f, -1.0f,
+//
+//		-1.0f, -1.0f,  1.0f,
+//		-1.0f, -1.0f, -1.0f,
+//		-1.0f,  1.0f, -1.0f,
+//		-1.0f,  1.0f, -1.0f,
+//		-1.0f,  1.0f,  1.0f,
+//		-1.0f, -1.0f,  1.0f,
+//
+//		 1.0f, -1.0f, -1.0f,
+//		 1.0f, -1.0f,  1.0f,
+//		 1.0f,  1.0f,  1.0f,
+//		 1.0f,  1.0f,  1.0f,
+//		 1.0f,  1.0f, -1.0f,
+//		 1.0f, -1.0f, -1.0f,
+//
+//		-1.0f, -1.0f,  1.0f,
+//		-1.0f,  1.0f,  1.0f,
+//		 1.0f,  1.0f,  1.0f,
+//		 1.0f,  1.0f,  1.0f,
+//		 1.0f, -1.0f,  1.0f,
+//		-1.0f, -1.0f,  1.0f,
+//
+//		-1.0f,  1.0f, -1.0f,
+//		 1.0f,  1.0f, -1.0f,
+//		 1.0f,  1.0f,  1.0f,
+//		 1.0f,  1.0f,  1.0f,
+//		-1.0f,  1.0f,  1.0f,
+//		-1.0f,  1.0f, -1.0f,
+//
+//		-1.0f, -1.0f, -1.0f,
+//		-1.0f, -1.0f,  1.0f,
+//		 1.0f, -1.0f, -1.0f,
+//		 1.0f, -1.0f, -1.0f,
+//		-1.0f, -1.0f,  1.0f,
+//		 1.0f, -1.0f,  1.0f
+//	};
+//
+//	// skybox VAO
+//	glGenVertexArrays(1, &skyboxVAO);
+//	glGenBuffers(1, &skyboxVBO);
+//	glBindVertexArray(skyboxVAO);
+//	glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
+//	glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
+//	glEnableVertexAttribArray(0);
+//	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+//
+//	//load textures
+//	vector<std::string> faces;
+//	faces.push_back("Images/skybox/right.jpg");
+//	faces.push_back("Images/skybox/left.jpg");
+//	faces.push_back("Images/skybox/top.jpg");
+//	faces.push_back("Images/skybox/bottom.jpg");
+//	faces.push_back("Images/skybox/front.jpg");
+//	faces.push_back("Images/skybox/back.jpg");
+//	cubemapTexture = loadCubemap(faces);
+//}
+//
+//void TrainView::
+//drawSkybox()
+//{
+//	glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
+//	skyboxShader->Use();
+//	glUniform1i(glGetUniformLocation(this->skyboxShader->Program, "skybox"), 0);
+//	glm::mat4 view;
+//	glm::mat4 projection;
+//
+//	glGetFloatv(GL_MODELVIEW_MATRIX, &view[0][0]);
+//	glGetFloatv(GL_PROJECTION_MATRIX, &projection[0][0]);
+//	view = glm::mat4(glm::mat3(view)); // remove translation from the view matrix
+//
+//	glGetFloatv(GL_PROJECTION_MATRIX, &projection[0][0]);
+//	glUniformMatrix4fv(glGetUniformLocation(this->skyboxShader->Program, "view"), 1, GL_FALSE, &view[0][0]);
+//	glUniformMatrix4fv(glGetUniformLocation(this->skyboxShader->Program, "projection"), 1, GL_FALSE, &projection[0][0]);
+//
+//	// skybox cube
+//	glBindVertexArray(skyboxVAO);
+//	glActiveTexture(GL_TEXTURE0);
+//	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+//	glDrawArrays(GL_TRIANGLES, 0, 36);
+//	glBindVertexArray(0);
+//	glDepthFunc(GL_LESS); // set depth function back to default
+//}
