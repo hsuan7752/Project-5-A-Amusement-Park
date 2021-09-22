@@ -11,6 +11,7 @@
 #include <math.h>
 #include <vector>
 #include <glm/glm.hpp>
+//#include <GLUT/glut.h>
 
 #include "Utilities/3DUtils.H"
 
@@ -41,6 +42,11 @@ public:
 	void drawCarriage();
 
 	void draw(bool doingShadows);
+
+	void drawWheel(bool doingShadows);
+
+	void drawTorus(GLdouble innerRadius, GLdouble outerRadius,
+		GLint nsides, GLint rings);
 
 private:
 	std::vector< Carriage >		carriages;

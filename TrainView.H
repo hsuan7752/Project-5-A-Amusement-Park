@@ -28,7 +28,6 @@
 
 #include "RenderUtilities/BufferObject.h"
 #include "RenderUtilities/Shader.h"
-//#include "RenderUtilities/Texture.h"
 #include "RenderUtilities/Texture.h"
 #include "RenderUtilities/WaterFrameBuffer.H"
 
@@ -103,11 +102,11 @@ public:
 
 	void	drawWheel(bool doingShadow);
 
-	//unsigned int loadCubemap(std::vector<std::string> faces);
-	//
-	//void	initskyboxShader();
-	//
-	//void	drawSkybox();
+	unsigned int loadCubemap(std::vector<std::string> faces);
+	
+	void	initskyboxShader();
+	
+	void	drawSkybox();
 
 public:
 	ArcBallCam		arcball;			// keep an ArcBall for the UI
@@ -121,10 +120,12 @@ public:
 	float			totalDistance = 0.0f;
 	FerrisWheel		ferris_wheel;
 
-	//Shader*			skyboxShader = nullptr;
-	//Texture2D*		skyboxTexture = nullptr;
-	//
-	//unsigned int	skyboxVAO;
-	//unsigned int	skyboxVBO;
-	//unsigned int	cubemapTexture;
+	float			f_time = 0.0f;
+
+	Shader*			skyboxShader = nullptr;
+	Texture2D*		skyboxTexture = nullptr;
+	
+	unsigned int	skyboxVAO;
+	unsigned int	skyboxVBO;
+	unsigned int	cubemapTexture;
 };

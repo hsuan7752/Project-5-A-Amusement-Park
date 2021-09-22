@@ -235,7 +235,7 @@ advanceTrain(float dir)
 	if (trainView->t_time > 1.0f)
 		trainView->t_time -= 1.0f;
 
-	if (arcLength->value())
+	/*if (arcLength->value())
 	{
 		trainView->s_time += (dir / trainView->totalDistance);
 		
@@ -249,5 +249,5 @@ advanceTrain(float dir)
 			trainView->s_time = 0.0f;
 			trainView->t_time = 0.0f;
 		}
-	}
+	}*/
 }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  

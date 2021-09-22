@@ -30,9 +30,9 @@
 #include "GL/glu.h"
 #include <math.h>
 
-//#define STB_IMAGE_IMPLEMENTATION
-//#include "stb-master/stb_image.h"
-//#include <iostream>
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb-master/stb_image.h"
+#include <iostream>
 
 #include "TrainView.H"
 #include "TrainWindow.H"
@@ -209,8 +209,8 @@ void TrainView::draw()
 	if (gladLoadGL())
 	{
 		//initiailize VAO, VBO, Shader...
-		//if (!skyboxShader)
-		//	initskyboxShader();
+		if (!skyboxShader)
+			initskyboxShader();
 	}
 	else
 		throw std::runtime_error("Could not initialize GLAD!");
@@ -414,11 +414,6 @@ setProjection()
 		Pnt3f new_cp_pos_p2 = m_pTrack->points[(new_side + 1) % m_pTrack->points.size()].pos;
 		Pnt3f new_cp_pos_p3 = m_pTrack->points[(new_side + 2) % m_pTrack->points.size()].pos;
 		Pnt3f new_cp_pos_p4 = m_pTrack->points[(new_side + 3) % m_pTrack->points.size()].pos;
-		//orient
-		Pnt3f new_cp_orient_p1 = m_pTrack->points[new_side].orient;
-		Pnt3f new_cp_orient_p2 = m_pTrack->points[(new_side + 1) % m_pTrack->points.size()].orient;
-		Pnt3f new_cp_orient_p3 = m_pTrack->points[(new_side + 2) % m_pTrack->points.size()].orient;
-		Pnt3f new_cp_orient_p4 = m_pTrack->points[(new_side + 3) % m_pTrack->points.size()].orient;
 
 		Pnt3f forward, up;
 
@@ -524,7 +519,7 @@ void TrainView::drawStuff(bool doingShadows)
 		ferris_wheel.draw(doingShadows);
 		glPopMatrix();
 
-		//drawSkybox();
+		drawSkybox();
 	}
 }
 
@@ -1129,132 +1124,132 @@ drawWheel(bool doingShadow)
 	glEnd();
 }
 
-//unsigned int TrainView::
-//loadCubemap(std::vector<std::string> faces)
-//{
-//	unsigned int textureID;
-//	glGenTextures(1, &textureID);
-//	glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
-//
-//	int width, height, nrComponents;
-//	for (unsigned int i = 0; i < faces.size(); i++)
-//	{
-//		unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrComponents, 0);
-//		if (data)
-//		{
-//			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-//			stbi_image_free(data);
-//		}
-//		else
-//		{
-//			std::cout << "Cubemap texture failed to load at path: " << faces[i] << std::endl;
-//			stbi_image_free(data);
-//		}
-//	}
-//	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-//	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-//	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-//
-//	return textureID;
-//}
-//
-//
-//void TrainView::
-//initskyboxShader()
-//{
-//	this->skyboxShader = new Shader(PROJECT_DIR "/src/shaders/skybox.vert",
-//		nullptr, nullptr, nullptr,
-//		PROJECT_DIR "/src/shaders/skybox.frag");
-//
-//	float skyboxVertices[] = {
-//		// positions          
-//		-1.0f,  1.0f, -1.0f,
-//		-1.0f, -1.0f, -1.0f,
-//		 1.0f, -1.0f, -1.0f,
-//		 1.0f, -1.0f, -1.0f,
-//		 1.0f,  1.0f, -1.0f,
-//		-1.0f,  1.0f, -1.0f,
-//
-//		-1.0f, -1.0f,  1.0f,
-//		-1.0f, -1.0f, -1.0f,
-//		-1.0f,  1.0f, -1.0f,
-//		-1.0f,  1.0f, -1.0f,
-//		-1.0f,  1.0f,  1.0f,
-//		-1.0f, -1.0f,  1.0f,
-//
-//		 1.0f, -1.0f, -1.0f,
-//		 1.0f, -1.0f,  1.0f,
-//		 1.0f,  1.0f,  1.0f,
-//		 1.0f,  1.0f,  1.0f,
-//		 1.0f,  1.0f, -1.0f,
-//		 1.0f, -1.0f, -1.0f,
-//
-//		-1.0f, -1.0f,  1.0f,
-//		-1.0f,  1.0f,  1.0f,
-//		 1.0f,  1.0f,  1.0f,
-//		 1.0f,  1.0f,  1.0f,
-//		 1.0f, -1.0f,  1.0f,
-//		-1.0f, -1.0f,  1.0f,
-//
-//		-1.0f,  1.0f, -1.0f,
-//		 1.0f,  1.0f, -1.0f,
-//		 1.0f,  1.0f,  1.0f,
-//		 1.0f,  1.0f,  1.0f,
-//		-1.0f,  1.0f,  1.0f,
-//		-1.0f,  1.0f, -1.0f,
-//
-//		-1.0f, -1.0f, -1.0f,
-//		-1.0f, -1.0f,  1.0f,
-//		 1.0f, -1.0f, -1.0f,
-//		 1.0f, -1.0f, -1.0f,
-//		-1.0f, -1.0f,  1.0f,
-//		 1.0f, -1.0f,  1.0f
-//	};
-//
-//	// skybox VAO
-//	glGenVertexArrays(1, &skyboxVAO);
-//	glGenBuffers(1, &skyboxVBO);
-//	glBindVertexArray(skyboxVAO);
-//	glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
-//	glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
-//	glEnableVertexAttribArray(0);
-//	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-//
-//	//load textures
-//	vector<std::string> faces;
-//	faces.push_back("Images/skybox/right.jpg");
-//	faces.push_back("Images/skybox/left.jpg");
-//	faces.push_back("Images/skybox/top.jpg");
-//	faces.push_back("Images/skybox/bottom.jpg");
-//	faces.push_back("Images/skybox/front.jpg");
-//	faces.push_back("Images/skybox/back.jpg");
-//	cubemapTexture = loadCubemap(faces);
-//}
-//
-//void TrainView::
-//drawSkybox()
-//{
-//	glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
-//	skyboxShader->Use();
-//	glUniform1i(glGetUniformLocation(this->skyboxShader->Program, "skybox"), 0);
-//	glm::mat4 view;
-//	glm::mat4 projection;
-//
-//	glGetFloatv(GL_MODELVIEW_MATRIX, &view[0][0]);
-//	glGetFloatv(GL_PROJECTION_MATRIX, &projection[0][0]);
-//	view = glm::mat4(glm::mat3(view)); // remove translation from the view matrix
-//
-//	glGetFloatv(GL_PROJECTION_MATRIX, &projection[0][0]);
-//	glUniformMatrix4fv(glGetUniformLocation(this->skyboxShader->Program, "view"), 1, GL_FALSE, &view[0][0]);
-//	glUniformMatrix4fv(glGetUniformLocation(this->skyboxShader->Program, "projection"), 1, GL_FALSE, &projection[0][0]);
-//
-//	// skybox cube
-//	glBindVertexArray(skyboxVAO);
-//	glActiveTexture(GL_TEXTURE0);
-//	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
-//	glDrawArrays(GL_TRIANGLES, 0, 36);
-//	glBindVertexArray(0);
-//	glDepthFunc(GL_LESS); // set depth function back to default
-//}
+unsigned int TrainView::
+loadCubemap(std::vector<std::string> faces)
+{
+	unsigned int textureID;
+	glGenTextures(1, &textureID);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+
+	int width, height, nrComponents;
+	for (unsigned int i = 0; i < faces.size(); i++)
+	{
+		unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrComponents, 0);
+		if (data)
+		{
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+			stbi_image_free(data);
+		}
+		else
+		{
+			std::cout << "Cubemap texture failed to load at path: " << faces[i] << std::endl;
+			stbi_image_free(data);
+		}
+	}
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	return textureID;
+}
+
+
+void TrainView::
+initskyboxShader()
+{
+	this->skyboxShader = new Shader(PROJECT_DIR "/src/shaders/skybox.vert",
+		nullptr, nullptr, nullptr,
+		PROJECT_DIR "/src/shaders/skybox.frag");
+
+	float skyboxVertices[] = {
+		// positions          
+		-1.0f,  1.0f, -1.0f,
+		-1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		-1.0f,  1.0f, -1.0f,
+		 1.0f,  1.0f, -1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		 1.0f, -1.0f,  1.0f
+	};
+
+	// skybox VAO
+	glGenVertexArrays(1, &skyboxVAO);
+	glGenBuffers(1, &skyboxVBO);
+	glBindVertexArray(skyboxVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+
+	//load textures
+	vector<std::string> faces;
+	faces.push_back("Images/skybox/right.jpg");
+	faces.push_back("Images/skybox/left.jpg");
+	faces.push_back("Images/skybox/top.jpg");
+	faces.push_back("Images/skybox/bottom.jpg");
+	faces.push_back("Images/skybox/front.jpg");
+	faces.push_back("Images/skybox/back.jpg");
+	cubemapTexture = loadCubemap(faces);
+}
+
+void TrainView::
+drawSkybox()
+{
+	glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
+	skyboxShader->Use();
+	glUniform1i(glGetUniformLocation(this->skyboxShader->Program, "skybox"), 0);
+	glm::mat4 view;
+	glm::mat4 projection;
+
+	glGetFloatv(GL_MODELVIEW_MATRIX, &view[0][0]);
+	glGetFloatv(GL_PROJECTION_MATRIX, &projection[0][0]);
+	view = glm::mat4(glm::mat3(view)); // remove translation from the view matrix
+
+	glGetFloatv(GL_PROJECTION_MATRIX, &projection[0][0]);
+	glUniformMatrix4fv(glGetUniformLocation(this->skyboxShader->Program, "view"), 1, GL_FALSE, &view[0][0]);
+	glUniformMatrix4fv(glGetUniformLocation(this->skyboxShader->Program, "projection"), 1, GL_FALSE, &projection[0][0]);
+
+	// skybox cube
+	glBindVertexArray(skyboxVAO);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+	glBindVertexArray(0);
+	glDepthFunc(GL_LESS); // set depth function back to default
+}
