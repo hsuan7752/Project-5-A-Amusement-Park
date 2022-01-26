@@ -41,7 +41,7 @@ public:
 
 	void drawCarriage();
 
-	void draw(bool doingShadows);
+	void draw(bool doingShadows, double time);
 
 	void drawWheel(bool doingShadows);
 

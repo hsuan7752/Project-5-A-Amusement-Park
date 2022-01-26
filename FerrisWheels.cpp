@@ -61,15 +61,17 @@ drawCarriage()
 }
 
 void FerrisWheel::
-draw(bool doingShadows)
+draw(bool doingShadows, double time)
 {
 	glPushMatrix();
 	glTranslatef(0.0f, 0.0f, 1.8f);
+	glRotatef(time * 360, 0.0f, 0.0f, 1.0f);
 	drawWheel(doingShadows);
 	glPopMatrix();
 
 	glPushMatrix();
 	glTranslatef(0.0f, 0.0f, -1.8f);
+	glRotatef(-time * 360, 0.0f, 0.0f, 1.0f);
 	drawWheel(doingShadows);
 	glPopMatrix();
 

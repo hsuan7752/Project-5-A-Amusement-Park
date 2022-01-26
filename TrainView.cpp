@@ -1,4 +1,4 @@
-/************************************************************************
+﻿/************************************************************************
 	 File:        TrainView.cpp
 	 Author:
 				  Michael Gleicher, gleicher@cs.wisc.edu
@@ -27,12 +27,14 @@
 //#include "GL/gl.h"
 #include <glad/glad.h>
 #include <glm/glm.hpp>
-#include "GL/glu.h"
+#include <glm/gtx/transform.hpp>
 #include <math.h>
+#include <time.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb-master/stb_image.h"
 #include <iostream>
+#include <algorithm>
 
 #include "TrainView.H"
 #include "TrainWindow.H"
@@ -208,13 +210,35 @@ void TrainView::draw()
 	//initialized glad
 	if (gladLoadGL())
 	{
+		srand(time(NULL));
 		//initiailize VAO, VBO, Shader...
-		if (!skyboxShader)
-			initskyboxShader();
+		if (!this->skyboxShader)
+			this->initskyboxShader();
+
+		if (!this->planeShader)
+			this->initPlaneShader();
+
+		if (!this->heightMapShader)
+			this->initHeightMapShader();
+
+		if (!this->tilesShader)
+			this->initTilesShader();
+
+		//particles = new Particle();
+		//InitParticle(*particles);
+		nOfFires = 0;
+
+		if (!this->commom_matrices)
+			this->commom_matrices = new UBO();
+		this->commom_matrices->size = 2 * sizeof(glm::mat4);
+		glGenBuffers(1, &this->commom_matrices->ubo);
+		glBindBuffer(GL_UNIFORM_BUFFER, this->commom_matrices->ubo);
+		glBufferData(GL_UNIFORM_BUFFER, this->commom_matrices->size, NULL, GL_STATIC_DRAW);
+		glBindBuffer(GL_UNIFORM_BUFFER, 0);
 	}
 	else
 		throw std::runtime_error("Could not initialize GLAD!");
-
+	ProcessParticles();
 	// Set up the view port
 	glViewport(0, 0, w(), h());
 
@@ -250,10 +274,12 @@ void TrainView::draw()
 	if (tw->topCam->value()) {
 		glDisable(GL_LIGHT1);
 		glDisable(GL_LIGHT2);
+		glDisable(GL_LIGHT3);
 	}
 	else {
 		glEnable(GL_LIGHT1);
 		glEnable(GL_LIGHT2);
+		glEnable(GL_LIGHT3);
 	}
 
 
@@ -273,14 +299,27 @@ void TrainView::draw()
 	glLightfv(GL_LIGHT0, GL_POSITION, lightPosition1);
 	glLightfv(GL_LIGHT0, GL_DIFFUSE, whiteLight);
 	glLightfv(GL_LIGHT0, GL_AMBIENT, grayLight);
-
+	
 	glLightfv(GL_LIGHT1, GL_POSITION, lightPosition2);
 	glLightfv(GL_LIGHT1, GL_DIFFUSE, yellowLight);
-
+	
 	glLightfv(GL_LIGHT2, GL_POSITION, lightPosition3);
 	glLightfv(GL_LIGHT2, GL_DIFFUSE, blueLight);
 
+	// set linstener position
+	if (selectedCube >= 0)
+		alListener3f(AL_POSITION,
+			m_pTrack->points[selectedCube].pos.x,
+			m_pTrack->points[selectedCube].pos.y,
+			m_pTrack->points[selectedCube].pos.z);
+	else
+		alListener3f(AL_POSITION,
+			this->source_pos.x,
+			this->source_pos.y,
+			this->source_pos.z);
 
+	glEnable(GL_LIGHTING);
+	setupObjects();
 
 	//*********************************************************************
 	// now draw the ground plane
@@ -290,8 +329,6 @@ void TrainView::draw()
 
 	setupFloor();
 	glDisable(GL_LIGHTING);
-	drawFloor(200, 10);
-
 
 	//*********************************************************************
 	// now draw the object and we need to do it twice
@@ -309,25 +346,47 @@ void TrainView::draw()
 		unsetupShadows();
 	}
 
-	if (tw->spotLT->value())
-	{
+	
+	setUBO();
+	glBindBufferRange(
+		GL_UNIFORM_BUFFER, /*binding point*/0, this->commom_matrices->ubo, 0, this->commom_matrices->size);
 
-	}
-	else
-		glDisable(GL_LIGHT1);
+	drawSkybox();
 
-	if (tw->pointLT->value())
-	{
-		float yellowAmbientDiffuse[] = { 1.0f, 1.0f, 0.0f, 1.0f };
-		float position[] = { 0.0f, 100.0f, 0.0f, 1.0f };
+	drawPlane();
 
-		glEnable(GL_LIGHT1);
-		glLightfv(GL_LIGHT1, GL_AMBIENT, yellowAmbientDiffuse);
-		glLightfv(GL_LIGHT1, GL_DIFFUSE, yellowAmbientDiffuse);
-		glLightfv(GL_LIGHT1, GL_POSITION, position);
-	}
-	else
-		glDisable(GL_LIGHT1);
+	drawHeightMapWave();
+
+	DrawParticles();
+
+	drawTiles();
+
+	//loadModel();
+
+	//load2Buffer("Obj/body.obj", 0);
+	//
+	//load2Buffer("Obj/ulefthand.obj", 1);
+	//load2Buffer("Obj/dlefthand.obj", 2);
+	//load2Buffer("Obj/lefthand.obj", 3);
+	//load2Buffer("Obj/lshouder.obj", 4);
+	//
+	//load2Buffer("Obj/head.obj", 5);
+	//
+	//load2Buffer("Obj/urighthand.obj", 6);
+	//load2Buffer("Obj/drighthand.obj", 7);
+	//load2Buffer("Obj/righthand.obj", 8);
+	//load2Buffer("Obj/rshouder.obj", 9);
+	//
+	//load2Buffer("Obj/dbody.obj", 11);
+	//load2Buffer("Obj/back2.obj", 10);
+	//
+	//load2Buffer("Obj/uleftleg.obj", 12);
+	//load2Buffer("Obj/dleftleg.obj", 13);
+	//load2Buffer("Obj/leftfoot.obj", 14);
+	//
+	//load2Buffer("Obj/urightleg.obj", 15);
+	//load2Buffer("Obj/drightleg.obj", 16);
+	//load2Buffer("Obj/rightfoot.obj", 17);
 }
 
 //************************************************************************
@@ -515,11 +574,40 @@ void TrainView::drawStuff(bool doingShadows)
 	{
 		glPushMatrix();
 		glScalef(5.0f, 5.0f, 5.0f);
-		glTranslatef(0.0f, 7.0f, 0.0f);
-		ferris_wheel.draw(doingShadows);
+		glTranslatef(20.0f, 7.0f, 20.0f);
+		glRotatef(90.0f, 0.0f, 1.0f, 0.0f);
+		ferris_wheel.draw(doingShadows, f_time);
 		glPopMatrix();
 
-		drawSkybox();
+		for (int i = 1; i < 10; ++i)
+		{
+			trees->draw(glm::vec3(i * 20, 0.0f, 180.0f));
+			trees->draw(glm::vec3(180.f, 0.0f, i * 20));
+
+			trees->draw(glm::vec3(-i * 20, 0.0f, 180.0f));
+			trees->draw(glm::vec3(180.f, 0.0f, -i * 20));
+
+			trees->draw(glm::vec3(-i * 20, 0.0f, -180.0f));
+			trees->draw(glm::vec3(-180.f, 0.0f, -i * 20));
+
+			trees->draw(glm::vec3(i * 20, 0.0f, -180.0f));
+			trees->draw(glm::vec3(-180.f, 0.0f, i * 20));
+		}
+
+		for (int i = 9; i >= 4; --i)
+		{
+			trees->draw(glm::vec3(20.0f, 0.0f, i * 20));
+			trees->draw(glm::vec3(i * 20, 0.0f, 20.0f));
+
+			trees->draw(glm::vec3(20.0f, 0.0f, -i * 20));
+			trees->draw(glm::vec3(-i * 20, 0.0f, 20.0f));
+
+			trees->draw(glm::vec3(-20.0f, 0.0f, -i * 20));
+			trees->draw(glm::vec3(-i * 20, 0.0f, -20.0f));
+
+			trees->draw(glm::vec3(-20.0f, 0.0f, i * 20));
+			trees->draw(glm::vec3(i * 20, 0.0f, -20.0f));
+		}
 	}
 }
 
@@ -587,6 +675,26 @@ doPick()
 		selectedCube = -1;
 
 	printf("Selected Cube %d\n", selectedCube);
+}
+
+void TrainView::setUBO()
+{
+	float wdt = this->pixel_w();
+	float hgt = this->pixel_h();
+
+	glm::mat4 view_matrix;
+	glGetFloatv(GL_MODELVIEW_MATRIX, &view_matrix[0][0]);
+	//HMatrix view_matrix; 
+	//this->arcball.getMatrix(view_matrix);
+
+	glm::mat4 projection_matrix;
+	glGetFloatv(GL_PROJECTION_MATRIX, &projection_matrix[0][0]);
+	//projection_matrix = glm::perspective(glm::radians(this->arcball.getFoV()), (GLfloat)wdt / (GLfloat)hgt, 0.01f, 1000.0f);
+
+	glBindBuffer(GL_UNIFORM_BUFFER, this->commom_matrices->ubo);
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), &projection_matrix[0][0]);
+	glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), &view_matrix[0][0]);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
 #define PI 3.14159265
@@ -1253,3 +1361,1174 @@ drawSkybox()
 	glBindVertexArray(0);
 	glDepthFunc(GL_LESS); // set depth function back to default
 }
+
+void TrainView::
+AddParticle(Particle ex)
+{
+	pParticle p;
+	p = new Particle;//new particle   
+	p->pNext = NULL;        p->pPrev = NULL;
+	p->b = ex.b;  p->g = ex.g;  p->r = ex.r;
+	p->fade = ex.fade;
+	p->life = ex.life;
+	p->size = ex.size;
+	p->xpos = ex.xpos;
+	p->ypos = ex.ypos;
+	p->zpos = ex.zpos;
+	p->xspeed = ex.xspeed;
+	p->yspeed = ex.yspeed;
+	p->zspeed = ex.zspeed;
+	p->AddCount = ex.AddCount;
+	p->AddSpeed = ex.AddSpeed;
+	p->bAddParts = ex.bAddParts;
+	p->bFire = ex.bFire;
+	p->nExpl = ex.nExpl;
+
+	if (!particles)
+	{
+		particles = p;
+		return;
+	}
+	else
+	{
+		particles->pPrev = p;
+		p->pNext = particles;
+		particles = p;
+	}
+}
+
+void TrainView::
+DeleteParticle(pParticle* p)
+{
+	if (!(*p))
+		return;
+
+	if (!(*p)->pNext && !(*p)->pPrev)
+	{
+		delete(*p);
+		*p = NULL;
+		return;
+	}
+
+	pParticle tmp;
+	if (!(*p)->pPrev)
+	{
+		tmp = (*p);
+		*p = (*p)->pNext;
+		particles = *p;
+		(*p)->pPrev = NULL;
+		delete tmp;
+		return;
+	}
+
+	if (!(*p)->pNext)
+	{
+		(*p)->pPrev->pNext = NULL;
+		delete(*p);
+		*p = NULL;
+		return;
+	}
+
+	tmp = (*p);
+	(*p)->pPrev->pNext = (*p)->pNext;
+	(*p)->pNext->pPrev = (*p)->pPrev;
+	*p = (*p)->pNext;
+	delete tmp;
+}
+
+void TrainView::
+DeleteAll(pParticle* Part)
+{
+	while ((*Part))
+		DeleteParticle(Part);
+}
+
+void TrainView::
+InitParticle(Particle& ep)
+{
+	ep.b = float(rand() % 100) / 60.0f;//顏色隨機
+	ep.g = float(rand() % 100) / 60.0f;
+	ep.r = float(rand() % 100) / 60.0f;
+	ep.life = 1.0f;//初始壽命
+	ep.fade = 0.005f + float(rand() % 21) / 10000.0f;//衰减速度
+	ep.size = 1;//大小  
+	ep.xpos = 400.0f - float(rand() % 8001) / 10.0f;//位置 
+	ep.ypos = 100.0f;
+	ep.zpos = 400.0f - float(rand() % 8001) / 10.0f;
+
+	if (!int(ep.xpos))//x方向速度(z方向相同)
+		ep.xspeed = 0.0f;
+	else
+	{
+		if (ep.xpos < 0)
+		{
+			ep.xspeed = (rand() % int(-ep.xpos)) / 1500.0f;
+		}
+		else
+		{
+			ep.xspeed = -(rand() % int(ep.xpos)) / 1500.0f;
+		}
+	}
+	if (!int(ep.zpos))//x方向速度(z方向相同)
+		ep.zspeed = 0.0f;
+	else
+	{
+		if (ep.zpos < 0)
+		{
+			ep.zspeed = (rand() % int(-ep.zpos)) / 1500.0f;
+		}
+		else
+		{
+			ep.zspeed = -(rand() % int(ep.zpos)) / 1500.0f;
+		}
+	}
+	ep.yspeed = 0.04f + float(rand() % 11) / 1000.0f;//y方向速度(向上)
+
+	ep.bFire = 1;
+	ep.nExpl = 1 + rand() % 6;//粒子效果  
+	ep.bAddParts = 1;//設定有尾巴 
+	ep.AddCount = 0.0f;
+	ep.AddSpeed = 0.2f;
+	nOfFires++;//粒子數+1 
+	AddParticle(ep);//加入粒子列表
+
+}
+
+void TrainView::
+Explosion1(Particle* par)
+{
+	Particle ep;
+	for (int i = 0; i < 100; i++)
+	{
+		ep.b = float(rand() % 100) / 60.0f;
+		ep.g = float(rand() % 100) / 60.0f;
+		ep.r = float(rand() % 100) / 60.0f;
+		ep.life = 1.0f;
+		ep.fade = 0.01f + float(rand() % 31) / 10000.0f;
+		ep.size = 0.8f;
+		ep.xpos = par->xpos;
+		ep.ypos = par->ypos;
+		ep.zpos = par->zpos;
+		ep.xspeed = 0.02f - float(rand() % 41) / 1000.0f;
+		ep.yspeed = 0.02f - float(rand() % 41) / 1000.0f;
+		ep.zspeed = 0.02f - float(rand() % 41) / 1000.0f;
+		ep.bFire = 0;
+		ep.nExpl = 0;
+		ep.bAddParts = 0;
+		ep.AddCount = 0.0f;
+		ep.AddSpeed = 0.0f;
+		AddParticle(ep);
+	}
+}
+
+void TrainView::
+Explosion2(Particle* par)
+{
+	Particle ep;
+	for (int i = 0; i < 1000; i++)
+	{
+		ep.b = par->b;
+		ep.g = par->g;
+		ep.r = par->r;
+		ep.life = 1.0f;
+		ep.fade = 0.01f + float(rand() % 31) / 10000.0f;
+		ep.size = 0.8f;
+		ep.xpos = par->xpos;
+		ep.ypos = par->ypos;
+		ep.zpos = par->zpos;
+		ep.xspeed = 0.02f - float(rand() % 41) / 1000.0f;
+		ep.yspeed = 0.02f - float(rand() % 41) / 1000.0f;
+		ep.zspeed = 0.02f - float(rand() % 41) / 1000.0f;
+		ep.bFire = 0;
+		ep.nExpl = 0;
+		ep.bAddParts = 0;
+		ep.AddCount = 0.0f;
+		ep.AddSpeed = 0.0f;
+		AddParticle(ep);
+	}
+}
+
+void TrainView::
+Explosion3(Particle* par)
+{
+	Particle ep;
+	float PIAsp = 3.1415926 / 180;
+	for (int i = 0; i < 30; i++) {
+		float angle = float(rand() % 360) * PIAsp;
+		ep.b = par->b;
+		ep.g = par->g;
+		ep.r = par->r;
+		ep.life = 1.5f;
+		ep.fade = 0.01f + float(rand() % 31) / 10000.0f;
+		ep.size = 0.8f;
+		ep.xpos = par->xpos;
+		ep.ypos = par->ypos;
+		ep.zpos = par->zpos;
+		ep.xspeed = (float)sin(angle) * 0.01f;
+		ep.yspeed = 0.01f + float(rand() % 11) / 1000.0f;
+		ep.zspeed = (float)cos(angle) * 0.01f;
+		ep.bFire = 0;
+		ep.nExpl = 0;
+		ep.bAddParts = 1;
+		ep.AddCount = 0.0f;
+		ep.AddSpeed = 0.2f;
+		AddParticle(ep);
+	}
+}
+
+void TrainView::
+Explosion4(Particle* par)
+{
+	Particle ep;
+	float PIAsp = 3.1415926 / 180;
+	for (int i = 0; i < 30; i++) {
+		float angle = float(rand() % 360) * PIAsp;
+		ep.b = float(rand() % 100) / 60.0f;
+		ep.g = float(rand() % 100) / 60.0f;
+		ep.r = float(rand() % 100) / 60.0f;
+		ep.life = 1.5f;
+		ep.fade = 0.01f + float(rand() % 31) / 10000.0f;
+		ep.size = 0.8f;
+		ep.xpos = par->xpos;
+		ep.ypos = par->ypos;
+		ep.zpos = par->zpos;
+		ep.xspeed = (float)sin(angle) * 0.01f;
+		ep.yspeed = 0.01f + float(rand() % 11) / 1000.0f;
+		ep.zspeed = (float)cos(angle) * 0.01f;
+		ep.bFire = 0;
+		ep.nExpl = 0;
+		ep.bAddParts = 1;
+		ep.AddCount = 0.0f;
+		ep.AddSpeed = 0.2f;
+		AddParticle(ep);
+	}
+}
+
+void TrainView::
+Explosion5(Particle* par)
+{
+	Particle ep;
+	for (int i = 0; i < 30; i++) {
+		ep.b = par->b;
+		ep.g = par->g;
+		ep.r = par->r;
+		ep.life = 0.8f;
+		ep.fade = 0.01f + float(rand() % 31) / 10000.0f;
+		ep.size = 0.8f;
+		ep.xpos = par->xpos;
+		ep.ypos = par->ypos;
+		ep.zpos = par->zpos;
+		ep.xspeed = 0.01f - float(rand() % 21) / 1000.0f;
+		ep.yspeed = 0.01f - float(rand() % 21) / 1000.0f;
+		ep.zspeed = 0.01f - float(rand() % 21) / 1000.0f;
+		ep.bFire = 0;
+		ep.nExpl = 7;
+		ep.bAddParts = 0;
+		ep.AddCount = 0.0f;
+		ep.AddSpeed = 0.0f;
+		AddParticle(ep);
+	}
+}
+
+void TrainView::
+Explosion6(Particle* par)
+{
+	Particle ep;
+	for (int i = 0; i < 100; i++) {
+		ep.b = float(rand() % 100) / 60.0f;
+		ep.g = float(rand() % 100) / 60.0f;
+		ep.r = float(rand() % 100) / 60.0f;
+		ep.life = 0.8f;
+		ep.fade = 0.01f + float(rand() % 31) / 10000.0f;
+		ep.size = 0.8f;
+		ep.xpos = par->xpos;
+		ep.ypos = par->ypos;
+		ep.zpos = par->zpos;
+		ep.xspeed = 0.01f - float(rand() % 21) / 1000.0f;
+		ep.yspeed = 0.01f - float(rand() % 21) / 1000.0f;
+		ep.zspeed = 0.01f - float(rand() % 21) / 1000.0f;
+		ep.bFire = 0;
+		ep.nExpl = 7;
+		ep.bAddParts = 0;
+		ep.AddCount = 0.0f;
+		ep.AddSpeed = 0.0f;
+		AddParticle(ep);
+	}
+}
+
+void TrainView::
+Explosion7(Particle* par)
+{
+	Particle ep;
+	for (int i = 0; i < 10; i++) {
+		ep.b = par->b;
+		ep.g = par->g;
+		ep.r = par->r;
+		ep.life = 0.5f;
+		ep.fade = 0.01f + float(rand() % 31) / 10000.0f;
+		ep.size = 0.6f;
+		ep.xpos = par->xpos;
+		ep.ypos = par->ypos;
+		ep.zpos = par->zpos;
+		ep.xspeed = 0.02f - float(rand() % 41) / 1000.0f;
+		ep.yspeed = 0.02f - float(rand() % 41) / 1000.0f;
+		ep.zspeed = 0.02f - float(rand() % 41) / 1000.0f;
+		ep.bFire = 0;
+		ep.nExpl = 0;
+		ep.bAddParts = 0;
+		ep.AddCount = 0.0f;
+		ep.AddSpeed = 0.0f;
+		AddParticle(ep);
+	}
+}
+
+void TrainView::
+ProcessParticles()
+{
+	Tick1 = Tick2;
+	Tick2 = GetTickCount();
+	DTick = float(Tick2 - Tick1);
+	DTick *= 0.5f;
+	Particle ep;
+	if (nOfFires < MAX_FIRES)
+	{
+		InitParticle(ep);
+	}
+	pParticle par = particles;
+
+	while (par) {
+		par->life -= par->fade * (float(DTick) * 0.1f);//Particle壽命衰減 
+		if (par->life <= 0.05f) 
+		{//當壽命小於一定值
+
+			if (par->nExpl) 
+			{//爆炸效果
+				switch (par->nExpl) 
+				{
+				case 1:
+					Explosion1(par);
+					break;
+				case 2:
+					Explosion2(par);
+					break;
+				case 3:
+					Explosion3(par);
+					break;
+				case 4:
+					Explosion4(par);
+					break;
+				case 5:
+					Explosion5(par);
+					break;
+				case 6:
+					Explosion6(par);
+					break;
+				case 7:
+					Explosion7(par);
+					break;
+				default:
+					break;
+				}
+			}
+			if (par->bFire)
+				nOfFires--;
+			DeleteParticle(&par);
+		}
+		else 
+		{
+			par->xpos += par->xspeed * DTick;   
+			par->ypos += par->yspeed * DTick;
+			par->zpos += par->zspeed * DTick;   
+			par->yspeed -= grav * DTick;
+			if (par->bAddParts) {//假如有尾巴
+				par->AddCount += 0.01f * DTick;//AddCount變化愈慢，尾巴粒子愈小  
+				if (par->AddCount > par->AddSpeed) {//AddSpeed愈大，尾巴粒子愈小  
+					par->AddCount = 0;
+					ep.b = par->b;  ep.g = par->g;  ep.r = par->r;
+					ep.life = par->life - 0.01f;//壽命變短  
+					ep.fade = par->fade * 7.0f;//衰减快一些  
+					ep.size = 0.6f;//粒子尺寸小一些  
+					ep.xpos = par->xpos;  ep.ypos = par->ypos;  ep.zpos = par->zpos;
+					ep.xspeed = 0.0f;    ep.yspeed = 0.0f;  ep.zspeed = 0.0f;
+					ep.bFire = 0;
+					ep.nExpl = 0;
+					ep.bAddParts = 0;//尾巴粒子没有尾巴  
+					ep.AddCount = 0.0f;
+					ep.AddSpeed = 0.0f;
+					AddParticle(ep);
+				}
+			}   par = par->pNext;//更新下一粒子    
+		}  
+	}
+}
+
+void TrainView::
+DrawParticles()
+{
+	glBindTexture(GL_TEXTURE_2D, textureID);
+	glTranslatef(0, 0, -60);
+	pParticle par;
+	par = particles;
+	while (par)
+	{
+		glColor4f(par->r, par->g, par->b, par->life);
+		glBegin(GL_TRIANGLE_STRIP);
+		glTexCoord2d(1, 1);
+		glVertex3f(par->xpos + par->size, par->ypos + par->size, par->zpos);
+		glTexCoord2d(0, 1);
+		glVertex3f(par->xpos - par->size, par->ypos + par->size, par->zpos);
+		glTexCoord2d(1, 0);
+		glVertex3f(par->xpos + par->size, par->ypos - par->size, par->zpos);
+		glTexCoord2d(0, 0);
+		glVertex3f(par->xpos - par->size, par->ypos - par->size, par->zpos);
+		glEnd();
+		par = par->pNext;
+	}
+}
+
+void TrainView::
+initPlaneShader()
+{
+	this->planeShader = new Shader{ PROJECT_DIR "/src/shaders/simple.vert",
+										nullptr, nullptr, nullptr,
+										PROJECT_DIR "/src/shaders/simple.frag" };
+
+	GLfloat vertices[] = {
+		//down
+		-1.0f, 0.0f, 1.0f,
+		1.0f, 0.0f, 1.0f,
+		1.0f, 0.0f, -1.0f,
+		-1.0f, 0.0f, -1.0f,
+	};
+	GLfloat  normal[] = {
+		//down
+		0.0f, 1.0f, 0.0f,
+		0.0f, 1.0f, 0.0f,
+		0.0f, 1.0f, 0.0f,
+		0.0f, 1.0f, 0.0f,
+	};
+
+	GLfloat  texture_coordinate[] = {
+		1.0f, 1.0f,
+		0.0f, 1.0f,
+		0.0f, 0.0f,
+		1.0f, 0.0f,
+	};
+
+	GLuint element[] = {
+		//back
+		1, 0, 3,
+		3, 2, 1,
+	};
+
+	this->plane = new VAO;
+	this->plane->element_amount = sizeof(element) / sizeof(GLuint);
+	glGenVertexArrays(1, &this->plane->vao);
+	glGenBuffers(3, this->plane->vbo);
+	glGenBuffers(1, &this->plane->ebo);
+
+	glBindVertexArray(this->plane->vao);
+
+	// Position attribute
+	glBindBuffer(GL_ARRAY_BUFFER, this->plane->vbo[0]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+	glEnableVertexAttribArray(0);
+
+	// Normal attribute
+	glBindBuffer(GL_ARRAY_BUFFER, this->plane->vbo[1]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(normal), normal, GL_STATIC_DRAW);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+	glEnableVertexAttribArray(1);
+
+	// Texture Coordinate attribute
+	glBindBuffer(GL_ARRAY_BUFFER, this->plane->vbo[2]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(texture_coordinate), texture_coordinate, GL_STATIC_DRAW);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (GLvoid*)0);
+	glEnableVertexAttribArray(2);
+
+	//Element attribute
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->plane->ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(element), element, GL_STATIC_DRAW);
+
+	// Unbind VAO
+	glBindVertexArray(0);
+
+	if (!this->planeTexture)
+		this->planeTexture = new Texture2D(PROJECT_DIR "/Images/grass.bmp");
+}
+
+void TrainView::
+drawPlane()
+{
+	this->planeShader->Use();
+
+	glm::mat4 model_matrix = glm::mat4();
+	model_matrix = glm::translate(model_matrix, this->source_pos);
+	model_matrix = glm::scale(model_matrix, glm::vec3(200.0f, 200.0f, 200.0f));
+
+	glm::mat4 view_matrix;
+	glm::mat4 projection_matrix;
+
+	glGetFloatv(GL_MODELVIEW_MATRIX, &view_matrix[0][0]);
+	glGetFloatv(GL_PROJECTION_MATRIX, &projection_matrix[0][0]);
+
+	glUniformMatrix4fv(glGetUniformLocation(this->planeShader->Program, "u_view"), 1, GL_FALSE, &view_matrix[0][0]);
+	glUniformMatrix4fv(glGetUniformLocation(this->planeShader->Program, "u_projection"), 1, GL_FALSE, &projection_matrix[0][0]);
+
+	glUniformMatrix4fv(
+		glGetUniformLocation(this->planeShader->Program, "u_model"), 1, GL_FALSE, &model_matrix[0][0]);
+	glUniform3fv(
+		glGetUniformLocation(this->planeShader->Program, "u_color"),
+		1,
+		&glm::vec3(0.0f, 1.0f, 0.0f)[0]);
+
+	//this->planeTexture->bind(0);
+	//glUniform1i(glGetUniformLocation(this->planeShader->Program, "u_texture"), 0);
+	//glUniform4fv(glGetUniformLocation(this->planeShader->Program, "plane"), 1, &plane[0]);
+
+	this->planeTexture->bind(0);
+	glUniform1i(glGetUniformLocation(this->planeShader->Program, "u_texture"), 0);
+
+	//bind VAO
+	glBindVertexArray(this->plane->vao);
+
+	glDrawElements(GL_TRIANGLES, this->plane->element_amount, GL_UNSIGNED_INT, 0);
+
+	//unbind VAO
+	glBindVertexArray(0);
+
+	//unbind shader(switch to fixed pipeline)
+	glUseProgram(0);
+}
+
+void TrainView::
+initHeightMapShader()
+{
+	this->heightMapShader = new Shader{ PROJECT_DIR "/src/shaders/heightMap.vert",
+										nullptr, nullptr, nullptr,
+										PROJECT_DIR "/src/shaders/heightMap.frag" };
+
+	float size = 0.01f;
+	unsigned int width = 2.0f / size;
+	unsigned int height = 2.0f / size;
+
+	GLfloat* vertices = new GLfloat[width * height * 4 * 3]();
+	GLfloat* normal = new GLfloat[width * height * 4 * 3]();
+	GLfloat* texture_coordinate = new GLfloat[width * height * 4 * 2]();
+	GLuint* element = new GLuint[width * height * 6]();
+
+	for (int i = 0; i < width * height * 4 * 3; i += 12)
+	{
+		unsigned int h = i / 12 / width;
+		unsigned int w = i / 12 % width;
+
+		vertices[i] = w * size - 1.0f + size;
+		vertices[i + 1] = 0.6f;
+		vertices[i + 2] = h * size - 1.0f + size;
+
+		vertices[i + 3] = vertices[i] - size;
+		vertices[i + 4] = 0.6f;
+		vertices[i + 5] = vertices[i + 2];
+
+		vertices[i + 6] = vertices[i + 3];
+		vertices[i + 7] = 0.6f;
+		vertices[i + 8] = vertices[i + 5] - size;
+
+		vertices[i + 9] = vertices[i];
+		vertices[i + 10] = 0.6f;
+		vertices[i + 11] = vertices[i + 8];
+	}
+
+	for (int i = 0; i < width * height * 4 * 3; i += 3)
+	{
+		normal[i] = 0.0f;
+		normal[i + 1] = 1.0f;
+		normal[i + 2] = 0.0f;
+	}
+
+	for (int i = 0, j = 0; i < width * height * 4 * 2; i += 8, ++j)
+	{
+		int ii = i / (4 * 2), jj = i / (height * +4 * 2);
+		texture_coordinate[i] = 0.005 + ii * 0.005;
+		texture_coordinate[i + 1] = 0.005 + jj * 0.005;
+
+		texture_coordinate[i + 2] = 0.0f + ii * 0.005;
+		texture_coordinate[i + 3] = 0.005 + jj * 0.005;
+
+		texture_coordinate[i + 4] = 0.0f + ii * 0.005;
+		texture_coordinate[i + 5] = 0.0f + jj * 0.005;
+
+		texture_coordinate[i + 6] = 0.005 + ii * 0.005;
+		texture_coordinate[i + 7] = 0.0f + jj * 0.005;
+	}
+
+	for (int i = 0, j = 0; i < width * height * 6; i += 6, j += 4)
+	{
+		element[i] = j + 1;
+		element[i + 1] = j;
+		element[i + 2] = j + 3;
+
+		element[i + 3] = element[i + 2];
+		element[i + 4] = j + 2;
+		element[i + 5] = element[i];
+	}
+
+	this->heightMap = new VAO;
+	this->heightMap->element_amount = width * height * 6;
+	glGenVertexArrays(1, &this->heightMap->vao);
+	glGenBuffers(3, this->heightMap->vbo);
+	glGenBuffers(1, &this->heightMap->ebo);
+
+	glBindVertexArray(this->heightMap->vao);
+
+	// Position attribute
+	glBindBuffer(GL_ARRAY_BUFFER, this->heightMap->vbo[0]);
+	glBufferData(GL_ARRAY_BUFFER, width * height * 4 * 3 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+	glEnableVertexAttribArray(0);
+
+	// Normal attribute
+	glBindBuffer(GL_ARRAY_BUFFER, this->heightMap->vbo[1]);
+	glBufferData(GL_ARRAY_BUFFER, width * height * 4 * 3 * sizeof(GLfloat), normal, GL_STATIC_DRAW);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+	glEnableVertexAttribArray(1);
+
+	// Texture Coordinate attribute
+	glBindBuffer(GL_ARRAY_BUFFER, this->heightMap->vbo[2]);
+	glBufferData(GL_ARRAY_BUFFER, width * height * 4 * 2 * sizeof(GLfloat), texture_coordinate, GL_STATIC_DRAW);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (GLvoid*)0);
+	glEnableVertexAttribArray(2);
+
+	//Element attribute
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->heightMap->ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, width * height * 6 * sizeof(GLuint), element, GL_STATIC_DRAW);
+
+	// Unbind VAO
+	glBindVertexArray(0);
+
+	for (int i = 0; i < 200; ++i)
+	{
+		std::string name;
+		if (i < 10)
+			name = "00" + std::to_string(i);
+		else if (i < 100)
+			name = "0" + std::to_string(i);
+		else
+			name = std::to_string(i);
+
+		this->heightMapTexture.push_back(Texture2D(("Images/waves5/" + name + ".png").c_str()));
+	}
+}
+
+void TrainView::
+drawHeightMapWave()
+{
+	glEnable(GL_BLEND);
+
+	this->heightMapShader->Use();
+
+	glm::mat4 model_matrix = glm::mat4();
+	//model_matrix = glm::translate(model_matrix, this->source_pos);
+	model_matrix = glm::translate(model_matrix, pos);
+	model_matrix = glm::scale(model_matrix, scal);
+
+	glUniformMatrix4fv(
+		glGetUniformLocation(this->heightMapShader->Program, "u_model"), 1, GL_FALSE, &model_matrix[0][0]);
+	glUniform3fv(
+		glGetUniformLocation(this->heightMapShader->Program, "u_color"),
+		1,
+		&glm::vec3(0.0f, 1.0f, 0.0f)[0]);
+
+	heightMapTexture[heightMapIndex].bind(0);
+	glUniform1i(glGetUniformLocation(this->heightMapShader->Program, "u_texture"), 0);
+	this->planeTexture->bind(1);
+	glUniform1i(glGetUniformLocation(this->heightMapShader->Program, "tiles"), 1);
+
+	//glUniform1f(glGetUniformLocation(this->heightMapShader->Program, "amplitude"), tw->amplitude->value());
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, this->cubemapTexture);
+	glUniform1i(glGetUniformLocation(this->heightMapShader->Program, "skyBox"), 0);
+
+	glUniform1f(glGetUniformLocation(this->heightMapShader->Program, "time"), t_time);
+
+	GLfloat* view_matrix = new GLfloat[16]();
+
+	glGetFloatv(GL_MODELVIEW_MATRIX, view_matrix);
+
+	view_matrix = inverse(view_matrix);
+
+	this->cameraPosition = glm::vec3(view_matrix[12], view_matrix[13], view_matrix[14]);
+	glUniform3fv(glGetUniformLocation(this->heightMapShader->Program, "camera"), 1, &cameraPosition[0]);
+
+	//bind VAO
+	glBindVertexArray(this->heightMap->vao);
+
+	glDrawElements(GL_TRIANGLES, this->heightMap->element_amount, GL_UNSIGNED_INT, 0);
+
+	for (int i = 0; i < allDrop.size(); ++i)
+	{
+		if (t_time - allDrop[i].time > allDrop[i].keepTime)
+		{
+			allDrop.erase(allDrop.begin() + i);
+			--i;
+			continue;
+		}
+
+		glUniform2f(glGetUniformLocation(this->heightMapShader->Program, "dropPoint"), allDrop[i].point.x, allDrop[i].point.y);
+		std::cout << allDrop[i].point.x << " " << allDrop[i].point.y << std::endl;
+		glUniform1f(glGetUniformLocation(this->heightMapShader->Program, "dropTime"), allDrop[i].time);
+		glUniform1f(glGetUniformLocation(this->heightMapShader->Program, "interactiveRadius"), allDrop[i].radius);
+
+		glDrawElements(GL_TRIANGLES, this->heightMap->element_amount, GL_UNSIGNED_INT, 0);
+	}
+
+	//unbind VAO
+	glBindVertexArray(0);
+
+	//unbind shader(switch to fixed pipeline)
+	glUseProgram(0);
+
+	glDisable(GL_BLEND);
+}
+
+void TrainView::
+addDrop(float radius, float keepTime)
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, interactiveFrameBuffer);
+	glBindTexture(GL_TEXTURE_2D, interactiveTextureBuffer);
+	glBindRenderbuffer(GL_RENDERBUFFER, interactiveRenderBuffer);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+	interactiveFrameShader->Use();
+
+	glm::mat4 view_matrix;
+	glm::mat4 projection_matrix;
+
+	glGetFloatv(GL_MODELVIEW_MATRIX, &view_matrix[0][0]);
+	glGetFloatv(GL_PROJECTION_MATRIX, &projection_matrix[0][0]);
+
+	glUniformMatrix4fv(glGetUniformLocation(this->interactiveFrameShader->Program, "view"), 1, GL_FALSE, &view_matrix[0][0]);
+	glUniformMatrix4fv(glGetUniformLocation(this->interactiveFrameShader->Program, "projection"), 1, GL_FALSE, &projection_matrix[0][0]);
+
+	glm::mat4 model_matrix = glm::mat4(1.0f);
+	model_matrix = glm::translate(model_matrix, glm::vec3(0.0f, 0.0f, 0.0f));
+	model_matrix = glm::scale(model_matrix, glm::vec3(100.0f, 100.0f, 100.0f));
+
+	glUniformMatrix4fv(
+		glGetUniformLocation(this->interactiveFrameShader->Program, "u_model"), 1, GL_FALSE, &model_matrix[0][0]);
+
+	glBindVertexArray(this->heightMap->vao);
+	glDrawElements(GL_TRIANGLES, this->heightMap->element_amount, GL_UNSIGNED_INT, 0);
+	glBindVertexArray(0);
+
+	glReadBuffer(GL_COLOR_ATTACHMENT0);
+	glm::vec3 uv;
+	glReadPixels(Fl::event_x(), h() - Fl::event_y(), 1, 1, GL_RGB, GL_FLOAT, &uv[0]);
+
+	glReadBuffer(GL_NONE);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+
+	if (uv.b != 1.0f)
+		allDrop.push_back(Drop(glm::vec2(uv.x, uv.y), this->t_time, radius, keepTime));
+}
+
+GLfloat* TrainView::
+inverse(GLfloat* m)
+{
+	GLfloat* inv = new GLfloat[16]();
+	float det;
+
+	int i;
+
+	inv[0] = m[5] * m[10] * m[15] -
+		m[5] * m[11] * m[14] -
+		m[9] * m[6] * m[15] +
+		m[9] * m[7] * m[14] +
+		m[13] * m[6] * m[11] -
+		m[13] * m[7] * m[10];
+
+	inv[4] = -m[4] * m[10] * m[15] +
+		m[4] * m[11] * m[14] +
+		m[8] * m[6] * m[15] -
+		m[8] * m[7] * m[14] -
+		m[12] * m[6] * m[11] +
+		m[12] * m[7] * m[10];
+
+	inv[8] = m[4] * m[9] * m[15] -
+		m[4] * m[11] * m[13] -
+		m[8] * m[5] * m[15] +
+		m[8] * m[7] * m[13] +
+		m[12] * m[5] * m[11] -
+		m[12] * m[7] * m[9];
+
+	inv[12] = -m[4] * m[9] * m[14] +
+		m[4] * m[10] * m[13] +
+		m[8] * m[5] * m[14] -
+		m[8] * m[6] * m[13] -
+		m[12] * m[5] * m[10] +
+		m[12] * m[6] * m[9];
+
+	inv[1] = -m[1] * m[10] * m[15] +
+		m[1] * m[11] * m[14] +
+		m[9] * m[2] * m[15] -
+		m[9] * m[3] * m[14] -
+		m[13] * m[2] * m[11] +
+		m[13] * m[3] * m[10];
+
+	inv[5] = m[0] * m[10] * m[15] -
+		m[0] * m[11] * m[14] -
+		m[8] * m[2] * m[15] +
+		m[8] * m[3] * m[14] +
+		m[12] * m[2] * m[11] -
+		m[12] * m[3] * m[10];
+
+	inv[9] = -m[0] * m[9] * m[15] +
+		m[0] * m[11] * m[13] +
+		m[8] * m[1] * m[15] -
+		m[8] * m[3] * m[13] -
+		m[12] * m[1] * m[11] +
+		m[12] * m[3] * m[9];
+
+	inv[13] = m[0] * m[9] * m[14] -
+		m[0] * m[10] * m[13] -
+		m[8] * m[1] * m[14] +
+		m[8] * m[2] * m[13] +
+		m[12] * m[1] * m[10] -
+		m[12] * m[2] * m[9];
+
+	inv[2] = m[1] * m[6] * m[15] -
+		m[1] * m[7] * m[14] -
+		m[5] * m[2] * m[15] +
+		m[5] * m[3] * m[14] +
+		m[13] * m[2] * m[7] -
+		m[13] * m[3] * m[6];
+
+	inv[6] = -m[0] * m[6] * m[15] +
+		m[0] * m[7] * m[14] +
+		m[4] * m[2] * m[15] -
+		m[4] * m[3] * m[14] -
+		m[12] * m[2] * m[7] +
+		m[12] * m[3] * m[6];
+
+	inv[10] = m[0] * m[5] * m[15] -
+		m[0] * m[7] * m[13] -
+		m[4] * m[1] * m[15] +
+		m[4] * m[3] * m[13] +
+		m[12] * m[1] * m[7] -
+		m[12] * m[3] * m[5];
+
+	inv[14] = -m[0] * m[5] * m[14] +
+		m[0] * m[6] * m[13] +
+		m[4] * m[1] * m[14] -
+		m[4] * m[2] * m[13] -
+		m[12] * m[1] * m[6] +
+		m[12] * m[2] * m[5];
+
+	inv[3] = -m[1] * m[6] * m[11] +
+		m[1] * m[7] * m[10] +
+		m[5] * m[2] * m[11] -
+		m[5] * m[3] * m[10] -
+		m[9] * m[2] * m[7] +
+		m[9] * m[3] * m[6];
+
+	inv[7] = m[0] * m[6] * m[11] -
+		m[0] * m[7] * m[10] -
+		m[4] * m[2] * m[11] +
+		m[4] * m[3] * m[10] +
+		m[8] * m[2] * m[7] -
+		m[8] * m[3] * m[6];
+
+	inv[11] = -m[0] * m[5] * m[11] +
+		m[0] * m[7] * m[9] +
+		m[4] * m[1] * m[11] -
+		m[4] * m[3] * m[9] -
+		m[8] * m[1] * m[7] +
+		m[8] * m[3] * m[5];
+
+	inv[15] = m[0] * m[5] * m[10] -
+		m[0] * m[6] * m[9] -
+		m[4] * m[1] * m[10] +
+		m[4] * m[2] * m[9] +
+		m[8] * m[1] * m[6] -
+		m[8] * m[2] * m[5];
+
+	det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
+
+	if (det == 0)
+		return false;
+
+	det = 1.0 / det;
+
+	for (i = 0; i < 16; i++)
+		inv[i] = inv[i] * det;
+
+	return inv;
+}
+
+void TrainView::
+initTilesShader()
+{
+	this->tilesShader = new Shader(PROJECT_DIR "/src/shaders/tiles.vert",
+		nullptr, nullptr, nullptr,
+		PROJECT_DIR "/src/shaders/tiles.frag");
+
+	GLfloat  vertices[] = {
+		// back
+		1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f, -1.0f,
+		-1.0f, 1.0f, -1.0f,
+		1.0f, 1.0f, -1.0f,
+
+		//left
+		1.0f, -1.0f, 1.0f,
+		1.0f, -1.0f, -1.0f,
+		1.0f, 1.0f, -1.0f,
+		1.0f, 1.0f, 1.0f,
+
+		//front
+		-1.0f, -1.0f, 1.0f,
+		1.0f, -1.0f, 1.0f,
+		1.0f, 1.0f, 1.0f,
+		-1.0f, 1.0f, 1.0f,
+
+		//right
+		-1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f, 1.0f,
+		-1.0f, 1.0f, 1.0f,
+		-1.0f, 1.0f, -1.0f,
+
+		//down
+		-1.0f, -1.0f, 1.0f,
+		1.0f, -1.0f, 1.0f,
+		1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f, -1.0f,
+
+		//up
+		//- 1.0f, 0.6f, 1.0f,
+		//1.0f, 0.6f, 1.0f,
+		//1.0f, 0.6f, -1.0f,
+		//-1.0f, 0.6f, -1.0f
+	};
+	GLfloat  normal[] = {
+		//back
+		0.0f, 0.0f, -1.0f,
+		0.0f, 0.0f, -1.0f,
+		0.0f, 0.0f, -1.0f,
+		0.0f, 0.0f, -1.0f,
+
+		//left
+		1.0f, 0.0f, 0.0f,
+		1.0f, 0.0f, 0.0f,
+		1.0f, 0.0f, 0.0f,
+		1.0f, 0.0f, 0.0f,
+
+		//front
+		0.0f, 0.0f, 1.0f,
+		0.0f, 0.0f, 1.0f,
+		0.0f, 0.0f, 1.0f,
+		0.0f, 0.0f, 1.0f,
+
+		//right
+		-1.0f, 0.0f, 0.0f,
+		-1.0f, 0.0f, 0.0f,
+		-1.0f, 0.0f, 0.0f,
+		-1.0f, 0.0f, 0.0f,
+
+		//down
+		0.0f, -1.0f, 0.0f,
+		0.0f, -1.0f, 0.0f,
+		0.0f, -1.0f, 0.0f,
+		0.0f, -1.0f, 0.0f,
+
+		//up
+		//0.0f, 1.0f, 0.0f,
+		//0.0f, 1.0f, 0.0f,
+		//0.0f, 1.0f, 0.0f,
+		//0.0f, 1.0f, 0.0f
+	};
+	GLfloat  texture_coordinate[] = {
+		1.0f, 0.0f,
+		0.0f, 0.0f,
+		0.0f, 1.0f,
+		1.0f, 1.0f,
+
+		1.0f, 0.0f,
+		0.0f, 0.0f,
+		0.0f, 1.0f,
+		1.0f, 1.0f,
+
+		1.0f, 0.0f,
+		0.0f, 0.0f,
+		0.0f, 1.0f,
+		1.0f, 1.0f,
+
+		1.0f, 0.0f,
+		0.0f, 0.0f,
+		0.0f, 1.0f,
+		1.0f, 1.0f,
+
+		1.0f, 0.0f,
+		0.0f, 0.0f,
+		0.0f, 1.0f,
+		1.0f, 1.0f,
+	};
+	GLuint element[] = {
+		//back
+		1, 0, 3,
+		3, 2, 1,
+
+		//left
+		5, 4, 7,
+		7, 6, 5,
+
+		//front
+		9, 8, 11,
+		11, 10, 9,
+
+		//right
+		13, 12, 15,
+		15, 14, 13,
+
+		//down
+		17, 16, 19,
+		19, 18, 17,
+	};
+
+	this->tiles = new VAO;
+	this->tiles->element_amount = sizeof(element) / sizeof(GLuint);
+	glGenVertexArrays(1, &this->tiles->vao);
+	glGenBuffers(3, this->tiles->vbo);
+	glGenBuffers(1, &this->tiles->ebo);
+
+	glBindVertexArray(this->tiles->vao);
+
+	// Position attribute
+	glBindBuffer(GL_ARRAY_BUFFER, this->tiles->vbo[0]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+	glEnableVertexAttribArray(0);
+
+	// Normal attribute
+	glBindBuffer(GL_ARRAY_BUFFER, this->tiles->vbo[1]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(normal), normal, GL_STATIC_DRAW);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+	glEnableVertexAttribArray(1);
+
+	// Texture Coordinate attribute
+	glBindBuffer(GL_ARRAY_BUFFER, this->tiles->vbo[2]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(texture_coordinate), texture_coordinate, GL_STATIC_DRAW);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (GLvoid*)0);
+	glEnableVertexAttribArray(2);
+
+	//Element attribute
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->tiles->ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(element), element, GL_STATIC_DRAW);
+
+	// Unbind VAO
+	glBindVertexArray(0);
+
+	if (!this->tilesTexture)
+		this->tilesTexture = new Texture2D(PROJECT_DIR "/Images/dolphin.jpg");
+}
+
+void TrainView::
+drawTiles()
+{
+	this->tilesShader->Use();
+
+	glm::mat4 model_matrix = glm::mat4();
+	model_matrix = glm::translate(model_matrix, this->source_pos);
+	model_matrix = glm::translate(model_matrix, glm::vec3(0.0f, 20.0f, 0.0f));
+	model_matrix = glm::translate(model_matrix, pos);
+	model_matrix = glm::scale(model_matrix, scal);	
+
+	//if (reflection)
+	//	model_matrix = glm::scale(model_matrix, glm::vec3(1, 1, 1));
+
+	glm::mat4 view_matrix;
+	glm::mat4 projection_matrix;
+
+	glGetFloatv(GL_MODELVIEW_MATRIX, &view_matrix[0][0]);
+	glGetFloatv(GL_PROJECTION_MATRIX, &projection_matrix[0][0]);
+
+	glUniformMatrix4fv(glGetUniformLocation(this->tilesShader->Program, "view"), 1, GL_FALSE, &view_matrix[0][0]);
+	glUniformMatrix4fv(glGetUniformLocation(this->tilesShader->Program, "projection"), 1, GL_FALSE, &projection_matrix[0][0]);
+
+	glUniformMatrix4fv(
+		glGetUniformLocation(this->tilesShader->Program, "u_model"), 1, GL_FALSE, &model_matrix[0][0]);
+	glUniform3fv(
+		glGetUniformLocation(this->tilesShader->Program, "u_color"),
+		1,
+		&glm::vec3(0.0f, 1.0f, 0.0f)[0]);
+	this->tilesTexture->bind(0);
+	glUniform1i(glGetUniformLocation(this->tilesShader->Program, "u_texture"), 0);
+	//glUniform4fv(glGetUniformLocation(this->tilesShader->Program, "plane"), 1, &plane[0]);
+
+	//bind VAO
+	glBindVertexArray(this->tiles->vao);
+
+	glDrawElements(GL_TRIANGLES, this->tiles->element_amount, GL_UNSIGNED_INT, 0);
+
+	//unbind VAO
+	glBindVertexArray(0);
+
+	//unbind shader(switch to fixed pipeline)
+	glUseProgram(0);
+}
+
+void TrainView::
+load2Buffer(char* obj, int i) {
+	std::vector<glm::vec3> vertices;
+	std::vector<glm::vec2> uvs;
+	std::vector<glm::vec3> normals; // Won't be used at the moment.
+	std::vector<unsigned int> materialIndices;
+
+	bool res = loadOBJ(obj, vertices, uvs, normals, faces[i], mtls[i]);
+	if (!res) printf("load failed\n");
+
+	//glUseProgram(program);
+
+	glGenBuffers(1, &VBOs[i]);
+	glBindBuffer(GL_ARRAY_BUFFER, VBOs[i]);
+	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
+	vertices_size[i] = vertices.size();
+
+	//(buffer type,data起始位置,data size,data first ptr)
+	//vertices_size[i] = glm_model->numtriangles;
+
+	//printf("vertices:%d\n",vertices_size[);
+
+	glGenBuffers(1, &uVBOs[i]);
+	glBindBuffer(GL_ARRAY_BUFFER, uVBOs[i]);
+	glBufferData(GL_ARRAY_BUFFER, uvs.size() * sizeof(glm::vec2), &uvs[0], GL_STATIC_DRAW);
+	uvs_size[i] = uvs.size();
+
+	glGenBuffers(1, &nVBOs[i]);
+	glBindBuffer(GL_ARRAY_BUFFER, nVBOs[i]);
+	glBufferData(GL_ARRAY_BUFFER, normals.size() * sizeof(glm::vec3), &normals[0], GL_STATIC_DRAW);
+	normals_size[i] = normals.size();
+}
+
+//bool TrainView::
+//loadModel()
+//{
+//	//std::ifstream file;
+//	//file.open("/src/Obj/armadillo.obj", std::ios::in);
+//	////file.read("/src/Obj/armadillo.obj");
+//	//if (!file)
+//	//{
+//	//	std::cout << "Impossible to open the file!" << std::endl;
+//	//	return false;
+//	//}
+//	//
+//	//while (1)
+//	//{
+//	//	char lineHeader[128];
+//	//	//int res = fscanf(file, "%s", lineHeader);
+//	//	//if (res == EOF)
+//	//		break;
+//	//}
+//	return true;
+//}

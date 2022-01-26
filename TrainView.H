@@ -35,6 +35,8 @@
 class TrainWindow;
 class CTrack;
 class FerrisWheel;
+class Aquarium;
+class SimpleController;
 
 //#######################################################################
 // TODO
@@ -53,11 +55,57 @@ class FerrisWheel;
 #include <Fl/Fl_Gl_Window.h>
 #pragma warning(pop)
 
+#include <AL/alut.h>
+#include <vector>
+#include <string>
+
 // this uses the old ArcBall Code
 #include "Utilities/ArcBallCam.H"
 #include "Utilities/Pnt3f.H"
 
 #include "FerrisWheels.H"
+#include "Tree.H"
+#include "Aquarium.H"
+#include "objloader.hpp"
+
+//#include <fstream>
+
+typedef struct tag_PARTICLE
+{
+	GLfloat xpos;//(xpos,ypos,zpos)為particle的position
+	GLfloat ypos;
+	GLfloat zpos;
+	GLfloat xspeed;//(xspeed,yspeed,zspeed)為particle的speed 
+	GLfloat yspeed;
+	GLfloat zspeed;
+	GLfloat r;//(r,g,b)為particle的color
+	GLfloat g;
+	GLfloat b;
+	GLfloat life;// particle的壽命 
+	GLfloat fade;// particle的衰減速度
+	GLfloat size;// particle的大小  
+	GLbyte    bFire;
+	GLbyte    nExpl;//哪種particle效果  
+	GLbyte    bAddParts;// particle是否含有尾巴
+	GLfloat   AddSpeed;//尾巴粒子的加速度  
+	GLfloat   AddCount;//尾巴粒子的增加量  
+	tag_PARTICLE* pNext;//下一particle 
+	tag_PARTICLE* pPrev;//上一particle
+
+} Particle, * pParticle;
+
+struct Drop
+{
+	Drop(glm::vec2 p, float t, float r, float k)
+		:point(p), time(t), radius(r), keepTime(k)
+	{
+	}
+
+	glm::vec2 point;
+	float time;
+	float radius;
+	float keepTime;
+};
 
 class TrainView : public Fl_Gl_Window
 {
@@ -84,6 +132,9 @@ public:
 	// pick a point (for when the mouse goes down)
 	void	doPick();
 
+	//set ubo
+	void setUBO();
+
 	void	drawTrack(bool doingShadow);
 
 	void	Mult_Q(float* C, float M[][4], float* T);
@@ -108,6 +159,50 @@ public:
 	
 	void	drawSkybox();
 
+	void	AddParticle(Particle ex);
+
+	void	DeleteParticle(pParticle* p);
+
+	void	DeleteAll(pParticle* Part);
+
+	void	InitParticle(Particle& ep);
+
+	void	Explosion1(Particle* par);
+
+	void	Explosion2(Particle* par);
+
+	void	Explosion3(Particle* par);
+
+	void	Explosion4(Particle* par);
+
+	void	Explosion5(Particle* par);
+
+	void	Explosion6(Particle* par);
+
+	void	Explosion7(Particle* par);
+
+	void	ProcessParticles();
+
+	void	DrawParticles();
+
+	void	initPlaneShader();
+
+	void	drawPlane();
+
+	void	initHeightMapShader();
+
+	void	drawHeightMapWave();
+
+	void	addDrop(float radius, float keepTime);
+
+	void	initTilesShader();
+
+	void	drawTiles();
+
+	void	load2Buffer(char* obj, int i);
+
+	//bool	loadModel();
+
 public:
 	ArcBallCam		arcball;			// keep an ArcBall for the UI
 	int				selectedCube;  // simple - just remember which cube is selected
@@ -128,4 +223,88 @@ public:
 	unsigned int	skyboxVAO;
 	unsigned int	skyboxVBO;
 	unsigned int	cubemapTexture;
+
+	Shader*			fireworksShader = nullptr;
+	VAO*			fireworksVBO;
+	GLuint*			fireworksTexture;
+
+	pParticle		particles = nullptr;
+	UINT			nOfFires;
+
+	UINT			Tick1, Tick2;
+	float			DTick;
+	GLfloat			grav = 0.00003f;
+	GLuint			textureID;	
+
+#define MAX_PARTICLES 1000
+#define MAX_FIRES 5
+
+	Shader*			planeShader = nullptr;
+	VAO*			plane = nullptr;
+	Texture2D*		planeTexture = nullptr;
+
+	//OpenAL
+	glm::vec3 source_pos;
+	glm::vec3 listener_pos;
+	ALCdevice* device = nullptr;
+	ALCcontext* context = nullptr;
+	ALuint source;
+	ALuint buffer;
+
+	UBO* commom_matrices = nullptr;
+
+	Shader* heightMapShader = nullptr;
+	VAO* heightMap = nullptr;
+	std::vector<Texture2D> heightMapTexture;
+		
+	unsigned int		heightMapIndex = 0;
+	float				moveFactor = 0.0f;
+	float				WAVE_SPEED = 0.03f;
+	glm::vec3			cameraPosition;
+	glm::vec3			lightColor;
+	glm::vec3			lightPosition;
+
+	std::vector<Drop> allDrop;
+	Shader* interactiveFrameShader = nullptr;
+	unsigned int interactiveFrameBuffer;
+	unsigned int interactiveTextureBuffer;
+	unsigned int interactiveRenderBuffer;
+	unsigned int interactiveQuadVAO;
+	unsigned int interactiveQuadVBO;
+
+	Tree*				trees;
+
+	Shader* tilesShader = nullptr;
+	VAO* tiles = nullptr;
+	Texture2D* tilesTexture = nullptr;
+
+	glm::vec3 scal = glm::vec3(50.0f, 20.0f, 50.0f);
+	glm::vec3 pos = glm::vec3(-100.0f, 0.0f, -100.0f);
+
+public:
+	GLfloat* inverse(GLfloat* m);
+
+public:
+#define PARTSNUM 18
+
+	//GLuint VAO;
+	GLuint VBO;
+	GLuint uVBO;
+	GLuint nVBO;
+	GLuint mVBO;
+	//GLuint UBO;
+	GLuint VBOs[PARTSNUM];
+	GLuint uVBOs[PARTSNUM];
+	GLuint nVBOs[PARTSNUM];
+	GLuint program;
+	int pNo;
+
+	int vertices_size[PARTSNUM];
+	int uvs_size[PARTSNUM];
+	int normals_size[PARTSNUM];
+	int materialCount[PARTSNUM];
+
+	std::vector<std::string> mtls[PARTSNUM];//use material
+	std::vector<unsigned int> faces[PARTSNUM];//face count
 };
+
